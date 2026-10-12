@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Ludo Warriors — Walking Goti</title>
+<style>
+:root{--bg:#111827;--panel:#1f2937;--ink:#f8fafc;--muted:#cbd5e1;--gold:#fbbf24}
+*{box-sizing:border-box}body{margin:0;background:radial-gradient(circle at top,#26354d,#0b1020 65%);color:var(--ink);font-family:system-ui,-apple-system,Segoe UI,sans-serif;min-height:100vh}
+header{text-align:center;padding:22px 14px 10px}h1{margin:0;font-size:clamp(1.7rem,4vw,2.8rem);letter-spacing:.04em}h1 span{color:var(--gold)}header p{margin:6px 0;color:var(--muted)}
+main{width:min(1180px,96vw);margin:0 auto 28px;display:grid;grid-template-columns:minmax(280px,720px) minmax(260px,340px);gap:18px;align-items:start}
+.board-wrap,.side{background:rgba(31,41,55,.88);border:1px solid #475569;border-radius:18px;padding:12px;box-shadow:0 18px 50px #0005}
+canvas{display:block;width:100%;height:auto;border-radius:12px;background:#f8fafc;touch-action:manipulation}
+.side{padding:18px}.turn{display:flex;align-items:center;gap:10px;font-weight:800;font-size:1.15rem}.dot{width:16px;height:16px;border-radius:50%;display:inline-block;background:var(--gold);box-shadow:0 0 0 4px #ffffff1c}
+.dice-row{display:flex;align-items:center;gap:14px;margin:18px 0}.die{width:72px;height:72px;background:#fff;color:#111827;border-radius:15px;display:grid;place-items:center;font-size:2.6rem;font-weight:900;box-shadow:inset 0 -5px 0 #cbd5e1,0 7px 18px #0004}
+button{border:0;border-radius:12px;padding:12px 16px;font-size:1rem;font-weight:800;cursor:pointer;transition:transform .12s,filter .12s}button:hover{filter:brightness(1.08);transform:translateY(-1px)}button:disabled{opacity:.45;cursor:not-allowed;transform:none}.primary{background:var(--gold);color:#1f2937;width:100%}.secondary{background:#334155;color:white;width:100%;margin-top:9px}
+.status{margin:14px 0;padding:12px;border-radius:12px;background:#0f172a;color:#e2e8f0;min-height:66px;line-height:1.45}.section-title{font-size:.82rem;text-transform:uppercase;letter-spacing:.1em;color:#94a3b8;margin:18px 0 8px}.pieces{display:grid;grid-template-columns:1fr 1fr;gap:8px}.stat{padding:10px;border-radius:10px;background:#0f172a;font-size:.9rem}.stat strong{display:block;font-size:1.2rem}.rules{color:#cbd5e1;font-size:.9rem;line-height:1.5;padding-left:18px}.rules li{margin:5px 0}.legend{display:flex;flex-wrap:wrap;gap:8px;margin-top:12px;font-size:.8rem;color:#cbd5e1}.legend span{display:flex;align-items:center;gap:5px}.swatch{width:10px;height:10px;border-radius:3px}
+footer{text-align:center;color:#94a3b8;font-size:.8rem;padding:0 12px 20px}
+@media(max-width:850px){main{grid-template-columns:1fr;max-width:680px}.side{order:2}.board-wrap{padding:7px}header{padding-top:16px}}
+</style>
+</head>
+<body>
+<header><h1>⚔️ LUDO <span>WARRIORS</span></h1><p>Roll the dice. March your warriors. Claim the crown.</p></header>
+<main>
+  <section class="board-wrap"><canvas id="board" width="720" height="720" aria-label="Ludo game board"></canvas><div class="legend">
+    <span><i class="swatch" style="background:#e94b55"></i>You · Red</span><span><i class="swatch" style="background:#2879e8"></i>Wizard · Blue</span><span><i class="swatch" style="background:#22a06b"></i>Ranger · Green</span><span><i class="swatch" style="background:#edb72e"></i>Paladin · Yellow</span>
+  </div></section>
+  <aside class="side">
+    <div class="turn"><i class="dot" id="turnDot"></i><span id="turnLabel">Your turn — Red Knight</span></div>
+    <div class="dice-row"><div class="die" id="die">⚄</div><div><strong id="rollLabel">Ready?</strong><div style="color:#94a3b8;font-size:.85rem" id="subLabel">Roll to begin your quest</div></div></div>
+    <button class="primary" id="rollBtn">🎲 Roll Dice</button>
+    <button class="secondary" id="restartBtn">↻ Restart Game</button>
+    <div class="status" id="status" aria-live="polite">Welcome, warrior! Roll a 6 to bring a warrior out of your base.</div>
+    <div class="section-title">Your squad</div>
+    <div class="pieces" id="pieces">
+      <div class="stat">Red Knight<strong>0 / 4 home</strong></div>
+      <div class="stat">Blue Wizard<strong>0 / 4 home</strong></div>
+      <div class="stat">Green Ranger<strong>0 / 4 home</strong></div>
+      <div class="stat">Gold Paladin<strong>0 / 4 home</strong></div>
+    </div>
+    <div class="section-title">How to play</div>
+    <ul class="rules">
+      <li>Roll a <b>6</b> to deploy a warrior from base.</li>
+      <li>Click one of your highlighted warriors to move it. Each step is animated as a walk.</li>
+      <li>Land on an enemy to send them back to base. Marked safe squares cannot be captured.</li>
+      <li>Reach the finish with an exact roll. First side to get all four warriors home wins.</li>
+      <li>The Blue Wizard, Green Ranger and Gold Paladin are computer opponents.</li>
+    </ul>
+  </aside>
+</main>
+<footer>Made with HTML Canvas + JavaScript · No libraries or assets required</footer>
+<script>
+(() => {
+const canvas=document.getElementById('board'),ctx=canvas.getContext('2d');
+const $=id=>document.getElementById(id);
+const W=720,CELL=48,OFF=0;
+const colors=['#e94b55','#2879e8','#22a06b','#edb72e'];
+const dark=['#a92c37','#1450a8','#116d47','#a8790a'];
+const pale=['#ffe0e1','#dceaff','#d8f8e8','#fff0bf'];
+const names=['Red Knight','Blue Wizard','Green Ranger','Gold Paladin'];
+const roles=['KNIGHT','WIZARD','RANGER','PALADIN'];
+// 52 clockwise path cells, indexed in a 15x15 logical board.
+const path=[
+[6,1],[6,2],[6,3],[6,4],[6,5],[5,6],[4,6],[3,6],[2,6],[1,6],[0,6],
+[0,7],[0,8],[1,8],[2,8],[3,8],[4,8],[5,8],[6,9],[6,10],[6,11],[6,12],[6,13],[6,14],
+[7,14],[8,14],[8,13],[8,12],[8,11],[8,10],[8,9],[9,8],[10,8],[11,8],[12,8],[13,8],[14,8],
+[14,7],[14,6],[13,6],[12,6],[11,6],[10,6],[9,6],[8,5],[8,4],[8,3],[8,2],[8,1],[8,0],
+[7,0],[6,0]
+];
+// Main path arranged clockwise; safe squares at each player's start and star positions.
+const starts=[0,13,26,39];
+const safe=new Set([0,8,13,21,26,34,39,47]);
+const homeLanes=[
+[[7,1],[7,2],[7,3],[7,4],[7,5],[7,6]],
+[[13,7],[12,7],[11,7],[10,7],[9,7],[8,7]],
+[[7,13],[7,12],[7,11],[7,10],[7,9],[7,8]],
+[[1,7],[2,7],[3,7],[4,7],[5,7],[6,7]]
+];
+// Four base slots per player.
+const bases=[
+[[2.2,2.2],[4.1,2.2],[2.2,4.1],[4.1,4.1]],
+[[10.9,2.2],[12.8,2.2],[10.9,4.1],[12.8,4.1]],
+[[10.9,10.9],[12.8,10.9],[10.9,12.8],[12.8,12.8]],
+[[2.2,10.9],[4.1,10.9],[2.2,12.8],[4.1,12.8]]
+];
+let players=[],turn=0,dice=0,rolling=false,animating=false,selectable=[],winner=-1,gameToken=0,animClock=0;
+function fresh(){players=colors.map((_,p)=>({pieces:Array.from({length:4},()=>({step:-1,walk:0,from:null,to:null,progress:1,phase:Math.random()*6})),p}));turn=0;dice=0;rolling=false;animating=false;selectable=[];winner=-1;gameToken++;$('die').textContent='⚄';$('rollLabel').textContent='Ready?';$('subLabel').textContent='Roll to begin your quest';$('status').textContent='Welcome, warrior! Roll a 6 to bring a warrior out of your base.';setButtons();draw();updateUI();}
+function center(cell){return [(cell[0]+.5)*CELL,(cell[1]+.5)*CELL]}
+function boardXY(p){if(p.step<0){let b=bases[p.p][p.index];return [(b[0]+.5)*CELL,(b[1]+.5)*CELL]}if(p.step>=57)return center([[7,7]][0]);if(p.step>=52)return center(homeLanes[p.p][Math.min(5,p.step-52)]);return center(path[(starts[p.p]+p.step)%52]);}
+function addRoundRect(x,y,w,h,r,fill,stroke){ctx.beginPath();ctx.roundRect(x,y,w,h,r);ctx.fillStyle=fill;ctx.fill();if(stroke){ctx.strokeStyle=stroke;ctx.lineWidth=2;ctx.stroke()}}
+function drawCell(x,y,fill,stroke='#d5dce5'){ctx.fillStyle=fill;ctx.fillRect(x*CELL,y*CELL,CELL,CELL);ctx.strokeStyle=stroke;ctx.lineWidth=1;ctx.strokeRect(x*CELL,y*CELL,CELL,CELL)}
+function drawBase(p,x,y){const X=x*CELL,Y=y*CELL;ctx.fillStyle=pale[p];ctx.fillRect(X,Y,7*CELL,7*CELL);ctx.strokeStyle=colors[p];ctx.lineWidth=5;ctx.strokeRect(X+5,Y+5,7*CELL-10,7*CELL-10);addRoundRect(X+CELL*1.2,Y+CELL*1.2,CELL*4.6,CELL*4.6,22,'#ffffffcc',colors[p]);}
+function drawBoard(){
+ ctx.clearRect(0,0,W,W);ctx.fillStyle='#f8fafc';ctx.fillRect(0,0,W,W);
+ // Quadrant bases
+ drawBase(0,0,0);drawBase(1,8,0);drawBase(2,8,8);drawBase(3,0,8);
+ // Main path
+ path.forEach((c,i)=>{let fill='#fff';if(i===0)fill=pale[0];if(i===13)fill=pale[1];if(i===26)fill=pale[2];if(i===39)fill=pale[3];drawCell(c[0],c[1],fill);});
+ // Colored home lanes
+ homeLanes.forEach((lane,p)=>lane.forEach((c,i)=>drawCell(c[0],c[1],i===5?colors[p]:pale[p])));
+ // Center triangles
+ ctx.beginPath();ctx.moveTo(6*CELL,6*CELL);ctx.lineTo(9*CELL,6*CELL);ctx.lineTo(7.5*CELL,7.5*CELL);ctx.closePath();ctx.fillStyle=colors[1];ctx.fill();
+ ctx.beginPath();ctx.moveTo(9*CELL,6*CELL);ctx.lineTo(9*CELL,9*CELL);ctx.lineTo(7.5*CELL,7.5*CELL);ctx.closePath();ctx.fillStyle=colors[2];ctx.fill();
+ ctx.beginPath();ctx.moveTo(9*CELL,9*CELL);ctx.lineTo(6*CELL,9*CELL);ctx.lineTo(7.5*CELL,7.5*CELL);ctx.closePath();ctx.fillStyle=colors[3];ctx.fill();
+ ctx.beginPath();ctx.moveTo(6*CELL,9*CELL);ctx.lineTo(6*CELL,6*CELL);ctx.lineTo(7.5*CELL,7.5*CELL);ctx.closePath();ctx.fillStyle=colors[0];ctx.fill();
+ // center emblem
+ ctx.beginPath();ctx.arc(7.5*CELL,7.5*CELL,20,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle='#334155';ctx.lineWidth=3;ctx.stroke();
+ ctx.fillStyle='#334155';ctx.font='bold 12px system-ui';ctx.textAlign='center';ctx.fillText('CROWN',7.5*CELL,7.5*CELL+4);
+ // Safe star symbols
+ safe.forEach(i=>{const [x,y]=center(path[i]);ctx.fillStyle='#64748b';ctx.font='bold 20px system-ui';ctx.textAlign='center';ctx.textBaseline='middle';ctx.fillText('✦',x,y+1)});
+ // Base slots
+ bases.forEach((slots,p)=>slots.forEach((b,i)=>{const x=(b[0]+.5)*CELL,y=(b[1]+.5)*CELL;ctx.beginPath();ctx.arc(x,y,15,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();ctx.strokeStyle=colors[p];ctx.lineWidth=3;ctx.stroke();}));
+}
+function warrior(x,y,p,phase,selected=false,small=false){
+ const s=small?0.78:1, bob=Math.sin(phase*2.6)*2.1*s, leg=Math.sin(phase*5)*4*s;
+ ctx.save();ctx.translate(x,y+bob);ctx.scale(s,s);
+ if(selected){ctx.beginPath();ctx.ellipse(0,2,22,19,0,0,Math.PI*2);ctx.fillStyle='#fbbf243b';ctx.fill();ctx.strokeStyle='#fbbf24';ctx.lineWidth=3;ctx.stroke();}
+ // shadow
+ ctx.beginPath();ctx.ellipse(0,12,12,5,0,0,Math.PI*2);ctx.fillStyle='#0f172a33';ctx.fill();
+ // legs animate
+ ctx.strokeStyle=dark[p];ctx.lineWidth=5;ctx.lineCap='round';
+ ctx.beginPath();ctx.moveTo(-4,2);ctx.lineTo(-5+leg*.5,10);ctx.moveTo(4,2);ctx.lineTo(5-leg*.5,10);ctx.stroke();
+ // boots
+ ctx.fillStyle='#352a35';ctx.beginPath();ctx.ellipse(-6+leg*.5,11,5,3,0,0,Math.PI*2);ctx.ellipse(6-leg*.5,11,5,3,0,0,Math.PI*2);ctx.fill();
+ // cape
+ ctx.fillStyle=dark[p];ctx.beginPath();ctx.moveTo(-7,-5);ctx.lineTo(-12,5);ctx.lineTo(-2,3);ctx.closePath();ctx.fill();
+ // body armor
+ addRoundRect(-8,-9,16,15,5,colors[p],dark[p]);
+ ctx.strokeStyle='#fff9';ctx.lineWidth=1.5;ctx.beginPath();ctx.moveTo(0,-7);ctx.lineTo(0,3);ctx.stroke();
+ // arms
+ ctx.strokeStyle=dark[p];ctx.lineWidth=4;ctx.beginPath();ctx.moveTo(-7,-5);ctx.lineTo(-12,-1);ctx.moveTo(7,-5);ctx.lineTo(11,-7);ctx.stroke();
+ // tiny sword
+ ctx.strokeStyle='#dbeafe';ctx.lineWidth=2.5;ctx.beginPath();ctx.moveTo(11,-8);ctx.lineTo(15,-17);ctx.stroke();ctx.strokeStyle='#fbbf24';ctx.beginPath();ctx.moveTo(8,-10);ctx.lineTo(14,-7);ctx.stroke();
+ // head
+ ctx.beginPath();ctx.arc(0,-14,8,0,Math.PI*2);ctx.fillStyle='#f1c49b';ctx.fill();ctx.strokeStyle=dark[p];ctx.lineWidth=2;ctx.stroke();
+ // helmet / hood
+ ctx.fillStyle=colors[p];ctx.beginPath();ctx.arc(0,-16,8,Math.PI,Math.PI*2);ctx.lineTo(8,-14);ctx.lineTo(-8,-14);ctx.closePath();ctx.fill();ctx.strokeStyle=dark[p];ctx.lineWidth=1.5;ctx.stroke();
+ // face
+ ctx.fillStyle='#1f2937';ctx.beginPath();ctx.arc(-3,-14,1,0,Math.PI*2);ctx.arc(3,-14,1,0,Math.PI*2);ctx.fill();
+ // crown crest
+ ctx.fillStyle='#fbbf24';ctx.beginPath();ctx.moveTo(-4,-23);ctx.lineTo(-2,-27);ctx.lineTo(1,-23);ctx.lineTo(4,-27);ctx.lineTo(5,-22);ctx.closePath();ctx.fill();
+ ctx.restore();
+}
+function allPieces(){return players.flatMap(pl=>pl.pieces.map((piece,i)=>({...piece,p:pl.p,index:i})))}
+function drawPieces(){
+ // Draw home tokens first, then travelling tokens, with moving tokens on top.
+ const all=allPieces().sort((a,b)=>(a.step<0?0:1)-(b.step<0?0:1));
+ all.forEach(pc=>{
+  let x,y;
+  if(pc.progress<1&&pc.from&&pc.to){const t=pc.progress;const ease=t*t*(3-2*t);x=pc.from[0]+(pc.to[0]-pc.from[0])*ease;y=pc.from[1]+(pc.to[1]-pc.from[1])*ease;}
+  else [x,y]=boardXY(pc);
+  // spread tokens sharing a cell a little
+  const same=all.filter(q=>q!==pc&&q.step===pc.step&&q.p!==pc.p&&pc.step>=0&&pc.step<57&&Math.floor(q.p===pc.p?0:1));
+  if(pc.step>=0&&pc.step<57){const crowd=all.filter(q=>q!==pc&&q.step>=0&&q.step<57&&q.p!==pc.p&&Math.abs(boardXY(q)[0]-x)<2&&Math.abs(boardXY(q)[1]-y)<2);if(crowd.length){const angle=(pc.p*2.4+pc.index)*1.3;x+=Math.cos(angle)*7;y+=Math.sin(angle)*7;}}
+  warrior(x,y,pc.p,animClock+pc.phase,selectable.some(m=>m.p===pc.p&&m.i===pc.index),pc.step<0);
+ });
+}
+function draw(){drawBoard();drawPieces()}
+function setButtons(){ $('rollBtn').disabled=rolling||animating||winner>=0||selectable.length>0||turn!==0; }
+function updateUI(){
+ $('turnLabel').textContent=winner>=0?names[winner]+' wins!':turn===0?'Your turn — Red Knight':names[turn]+' thinking…';
+ $('turnDot').style.background=winner>=0?colors[winner]:colors[turn];
+ $('pieces').innerHTML=players.map((pl,p)=>`<div class="stat"><span style="color:${colors[p]}">● ${names[p]}</span><strong>${pl.pieces.filter(q=>q.step===57).length} / 4 home</strong><span style="color:#94a3b8;font-size:.8rem">${pl.pieces.filter(q=>q.step>=0&&q.step<57).length} on path</span></div>`).join('');
+ setButtons();
+}
+function say(msg){$('status').textContent=msg}
+function rollDice(){
+ if(rolling||animating||winner>=0||selectable.length||turn!==0)return;
+ rolling=true;setButtons();let n=0;const token=gameToken;
+ const timer=setInterval(()=>{if(token!==gameToken){clearInterval(timer);return} $('die').textContent=['⚀','⚁','⚂','⚃','⚄','⚅'][Math.floor(Math.random()*6)];n++;if(n>9){clearInterval(timer);dice=1+Math.floor(Math.random()*6);$('die').textContent=['⚀','⚁','⚂','⚃','⚄','⚅'][dice-1];$('rollLabel').textContent='Rolled '+dice;$('subLabel').textContent=dice===6?'A six! Deploy or move.':'Choose a highlighted warrior';rolling=false;afterRoll();}},75);
+}
+function legalMoves(p,d){return players[p].pieces.map((pc,i)=>({pc,i,p})).filter(m=>m.pc.step!==57&&(m.pc.step>=0||d===6)&&(m.pc.step<0||m.pc.step+d<=57));}
+function afterRoll(){
+ selectable=legalMoves(turn,dice);
+ if(!selectable.length){say(names[turn]+' has no legal move. Turn passes.');$('subLabel').textContent='No legal moves';const old=turn;setTimeout(()=>{if(winner<0){if(dice!==6)turn=(old+1)%4;dice=0;selectable=[];updateUI();if(turn!==0)computerTurn();else say('Your turn. Roll the dice!');}},700);}
+ else{
+   if(turn===0){say(dice===6?'Great! Click a highlighted warrior to deploy or move it.':'Click a highlighted warrior to walk '+dice+' steps.');}
+   else {setTimeout(()=>computerChoose(),500);}
+ }
+ updateUI();draw();
+}
+function targetFor(pc,d){let s=pc.step<0?0:pc.step+d;return s;}
+function animateMove(p,i,d){
+ const pc=players[p].pieces[i];const start=pc.step<0?0:pc.step;
+ if(pc.step<0){pc.step=0;const pos=boardXY({...pc,p,index:i});pc.from=pos;pc.to=pos;pc.progress=1;draw();continueWalk(p,i,d,1);return}
+ continueWalk(p,i,d,0);
+}
+function continueWalk(p,i,d,done){
+ if(done>=d){finishMove(p,i);return}
+ const pc=players[p].pieces[i];
+ const current=boardXY({...pc,p,index:i});
+ pc.step=pc.step<0?0:pc.step+1;
+ const target=boardXY({...pc,p,index:i});
+ pc.from=current;pc.to=target;pc.progress=0;animating=true;setButtons();
+ const token=gameToken, start=performance.now(), duration=175;
+ function frame(now){if(token!==gameToken)return;pc.progress=Math.min(1,(now-start)/duration);animClock+=.035;draw();if(pc.progress<1)requestAnimationFrame(frame);else{pc.progress=1;pc.from=null;pc.to=null;draw();setTimeout(()=>continueWalk(p,i,d,done+1),55);}}
+ requestAnimationFrame(frame);
+}
+function finishMove(p,i){
+ const pc=players[p].pieces[i];animating=false;
+ // capture only on the shared outer loop, not safe squares.
+ if(pc.step>=0&&pc.step<52){const idx=(starts[p]+pc.step)%52;if(!safe.has(idx)){players.forEach((pl,op)=>{if(op===p)return;pl.pieces.forEach(enemy=>{if(enemy.step>=0&&enemy.step<52&&(starts[op]+enemy.step)%52===idx){enemy.step=-1;enemy.progress=1;}})});}}
+ if(pc.step===57){say(names[p]+' got a warrior safely home!');}else say(names[p]+' moved '+dice+' step'+(dice===1?'':'s')+'.');
+ if(players[p].pieces.every(q=>q.step===57)){winner=p; say('🏆 '+names[p]+' wins the Ludo Warriors crown!');$('rollLabel').textContent='VICTORY';$('subLabel').textContent='Game complete';}
+ const extra=dice===6&&winner<0;
+ selectable=[];dice=0;
+ if(winner<0&&!extra)turn=(turn+1)%4;
+ updateUI();draw();
+ if(winner<0&&turn!==0){setTimeout(computerTurn,650)}else if(winner<0&&extra){say('You rolled a six! Roll again.');}
+}
+function computerTurn(){if(turn===0||winner>=0||rolling||animating)return;rollComputer()}
+function rollComputer(){
+ rolling=true;setButtons();let n=0;const token=gameToken;const timer=setInterval(()=>{if(token!==gameToken){clearInterval(timer);return}$('die').textContent=['⚀','⚁','⚂','⚃','⚄','⚅'][Math.floor(Math.random()*6)];if(++n>7){clearInterval(timer);dice=1+Math.floor(Math.random()*6);$('die').textContent=['⚀','⚁','⚂','⚃','⚄','⚅'][dice-1];$('rollLabel').textContent='Rolled '+dice;rolling=false;afterRoll();}},65);
+}
+function computerChoose(){
+ if(turn===0||winner>=0||!selectable.length)return;
+ const moves=selectable.slice().sort((a,b)=>scoreMove(b)-scoreMove(a));
+ const choice=moves[0];say(names[turn]+' chooses a move…');selectable=[];updateUI();animateMove(turn,choice.i,dice);
+}
+function scoreMove(m){
+ const pc=m.pc,d=dice;let score=Math.random()*2;
+ if(pc.step<0)return 15+(d===6?5:0);
+ const next=pc.step+d;if(next===57)score+=100;if(next>=52)score+=30;
+ const abs=(starts[m.p]+next)%52;
+ players.forEach((pl,op)=>{if(op!==m.p)pl.pieces.forEach(e=>{if(e.step>=0&&e.step<52&&(starts[op]+e.step)%52===abs&&!safe.has(abs))score+=40;});});
+ if(d===6)score+=8;score+=next*.2;return score;
+}
+function onCanvasClick(ev){
+ if(turn!==0||!selectable.length||animating||winner>=0)return;
+ const rect=canvas.getBoundingClientRect(),x=(ev.clientX-rect.left)*W/rect.width,y=(ev.clientY-rect.top)*W/rect.height;
+ let best=null,dist=1e9;
+ selectable.forEach(m=>{const pos=boardXY({...m.pc,p:m.p,index:m.i});const dd=Math.hypot(pos[0]-x,pos[1]-y);if(dd<dist){dist=dd;best=m;}});
+ if(best&&dist<42){const d=dice;selectable=[];$('subLabel').textContent='Your warrior is walking…';animateMove(0,best.i,d);}
+}
+canvas.addEventListener('click',onCanvasClick);$('rollBtn').addEventListener('click',rollDice);$('restartBtn').addEventListener('click',fresh);
+// Keep all pieces gently alive even while waiting.
+function idle(){animClock+=.025;if(!animating&&!rolling){draw()}requestAnimationFrame(idle)}
+fresh();idle();
+})();
+</script>
+</body>
+</html>
